@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base href="https://ai-image-generator.example.com/"><title>Interactive Stopwatch App</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(135deg, #1a1a2e, #0f0a20); /* Darker techy background */
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  header {
+    background-color: rgba(0, 0, 0, 0.5);
+    width: 100%;
+    padding: 1rem;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+  }
+  h1 {
+    margin: 0;
+    font-size: 2.5rem;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  }
+  main {
+    max-width: 600px;
+    width: 90%;
+    padding: 2rem;
+    box-sizing: border-box;
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+    margin: 40px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* Stopwatch Display Styling */
+  #stopwatch-display {
+    font-size: 5rem;
+    font-weight: 300;
+    margin-bottom: 30px;
+    padding: 20px 0;
+    width: 100%;
+    text-align: center;
+    letter-spacing: 2px;
+    color: #00bcd4; /* Accent color for display */
+    background-color: rgba(0, 0, 0, 0.1);
+    border-radius: 5px;
+  }
+
+  /* Controls Styling */
+  #controls {
+    display: flex;
+    justify-content: space-around;
+    width: 100%;
+    margin-bottom: 30px;
+  }
+
+  #controls button {
+    padding: 15px 30px;
+    border: none;
+    border-radius: 50px; /* Circular look */
+    cursor: pointer;
+    font-size: 1.2rem;
+    font-weight: bold;
+    width: 45%;
+    transition: transform 0.1s ease, opacity 0.3s;
+  }
+
+  #start-stop-btn {
+    background-color: #4CAF50; /* Green for Start */
+    color: white;
+  }
+  #start-stop-btn.running {
+    background-color: #FF9800; /* Orange/Yellow for Stop */
+  }
+
+  #lap-reset-btn {
+    background-color: #607D8B; /* Grey/Blue for Lap/Reset */
+    color: white;
+  }
+  
+  #controls button:active {
+    transform: scale(0.98);
+  }
+
+  #controls button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  /* Lap Times Styling */
+  #laps-section {
+    width: 100%;
+    text-align: left;
+    margin-top: 20px;
+  }
+  
+  #laps-section h2 {
+    font-size: 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+    color: #00bcd4;
+  }
+
+  #laps-list {
+    list-style: none;
+    padding: 0;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .lap-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 15px;
+    margin-bottom: 5px;
+    border-radius: 4px;
+    background-color: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid #00bcd4;
+    font-family: monospace;
+    font-size: 1.1rem;
+    align-items: center;
+  }
+
+  .lap-number {
+    font-weight: bold;
+    color: #ccc;
+    flex-shrink: 0;
+  }
+  .lap-time {
+    color: #fff;
+    text-align: right;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Interactive Stopwatch</h1>
+  </header>
+  <main>
+    <div id="stopwatch-display">00:00.00</div>
+    
+    <div id="controls">
+        <button id="lap-reset-btn" disabled>Lap</button>
+        <button id="start-stop-btn">Start</button>
+    </div>
+
+    <section id="laps-section">
+      <h2>Lap Times</h2>
+      <ul id="laps-list">
+        <!-- Lap times will be inserted here by JavaScript -->
+      </ul>
+    </section>
+  </main>
+
+  <script>
+    const display = document.getElementById('stopwatch-display');
+    const startStopBtn = document.getElementById('start-stop-btn');
+    const lapResetBtn = document.getElementById('lap-reset-btn');
+    const lapsList = document.getElementById('laps-list');
+
+    let startTime = 0;
+    let elapsedTime = 0; // Total time in milliseconds
+    let timerInterval = null;
+    let isRunning = false;
+    let lapTimes = []; // Stores { number, totalMs, durationMs }
+    let lapCounter = 0;
+
+    // --- Time Formatting ---
+
+    function formatTime(ms) {
+        let totalSeconds = Math.floor(ms / 1000);
+        let milliseconds = Math.floor((ms % 1000) / 10); // Centiseconds
+        
+        let hours = Math.floor(totalSeconds / 3600);
+        totalSeconds %= 3600;
+        let minutes = Math.floor(totalSeconds / 60);
+        let seconds = totalSeconds % 60;
+
+        const pad = (num, length = 2) => String(num).padStart(length, '0');
+
+        // If hours is 0, display MM:SS.ms. Otherwise H:MM:SS.ms
+        if (hours === 0) {
+            return pad(minutes) + ':' + pad(seconds) + '.' + pad(milliseconds);
+        }
+        return pad(hours) + ':' + pad(minutes) + ':' + pad(seconds) + '.' + pad(milliseconds);
+    }
+    
+    // --- Stopwatch Logic ---
+
+    function startTimer() {
+        startTime = Date.now() - elapsedTime;
+        timerInterval = setInterval(updateTime, 10); 
+        isRunning = true;
+        
+        startStopBtn.textContent = 'Stop';
+        startStopBtn.classList.add('running');
+        lapResetBtn.textContent = 'Lap';
+        lapResetBtn.disabled = false;
+    }
+
+    function stopTimer() {
+        clearInterval(timerInterval);
+        isRunning = false;
+        
+        startStopBtn.textContent = 'Start';
+        startStopBtn.classList.remove('running');
+        // If there are recorded laps or elapsed time, lap button should show Reset
+        if (elapsedTime > 0 || lapTimes.length > 0) {
+             lapResetBtn.textContent = 'Reset';
+             lapResetBtn.disabled = false;
+        } else {
+             lapResetBtn.textContent = 'Lap';
+             lapResetBtn.disabled = true;
+        }
+    }
+
+    function updateTime() {
+        elapsedTime = Date.now() - startTime;
+        display.textContent = formatTime(elapsedTime);
+    }
+
+    function handleStartStop() {
+        if (isRunning) {
+            stopTimer();
+        } else {
+            startTimer();
+        }
+    }
+
+    function handleLapReset() {
+        if (isRunning) {
+            recordLap();
+        } else {
+            // Only Reset if time has been recorded or laps exist
+            if (elapsedTime > 0 || lapTimes.length > 0) {
+                resetStopwatch();
+            }
+        }
+    }
+
+    function recordLap() {
+        lapCounter++;
+        const currentTotalTimeMs = elapsedTime; 
+
+        let previousTotalTimeMs = 0;
+        if (lapTimes.length > 0) {
+            previousTotalTimeMs = lapTimes[lapTimes.length - 1].totalMs;
+        }
+
+        const durationMs = currentTotalTimeMs - previousTotalTimeMs;
+
+        const lap = {
+            number: lapCounter,
+            totalTimeFormatted: formatTime(currentTotalTimeMs),
+            totalMs: currentTotalTimeMs, 
+            durationMs: durationMs
+        };
+
+        lapTimes.push(lap);
+        renderLaps();
+    }
+    
+    function resetStopwatch() {
+        stopTimer(); 
+        elapsedTime = 0;
+        lapCounter = 0;
+        lapTimes = [];
+        display.textContent = formatTime(0);
+        lapResetBtn.textContent = 'Lap';
+        lapResetBtn.disabled = true;
+        renderLaps();
+    }
+
+    // --- UI Rendering ---
+
+    function renderLaps() {
+        lapsList.innerHTML = '';
+        
+        if (lapTimes.length === 0) return;
+
+        // Find min/max duration to highlight fastest/slowest laps
+        let minDuration = Infinity;
+        let maxDuration = 0;
+
+        if (lapTimes.length > 1) {
+            // Find actual min/max duration among segments, excluding the first lap
+            lapTimes.forEach(lap => {
+                if (lap.durationMs > maxDuration) maxDuration = lap.durationMs;
+                if (lap.durationMs < minDuration) minDuration = lap.durationMs;
+            });
+        }
+        
+        lapTimes.slice().reverse().forEach(lap => {
+            const li = document.createElement('li');
+            li.className = 'lap-item';
+            
+            // Highlight fastest/slowest, only if there is more than one lap segment to compare
+            if (lapTimes.length > 1) {
+                // Check against calculated min/max
+                if (lap.durationMs === minDuration) {
+                    li.style.backgroundColor = 'rgba(76, 175, 80, 0.2)'; // Green highlight (Fastest)
+                } else if (lap.durationMs === maxDuration) {
+                    li.style.backgroundColor = 'rgba(244, 67, 54, 0.2)'; // Red highlight (Slowest)
+                }
+            }
+            
+            const lapNumberSpan = document.createElement('span');
+            lapNumberSpan.className = 'lap-number';
+            lapNumberSpan.textContent = `Lap ${lap.number}`;
+            
+            const lapTimeSpan = document.createElement('span');
+            lapTimeSpan.className = 'lap-time';
+            
+            const durationFormatted = formatTime(lap.durationMs);
+            
+            lapTimeSpan.innerHTML = 
+                `<span style="color: #fff;">${durationFormatted}</span>` + 
+                `<small style="margin-left: 10px; color: #888;">(Total: ${lap.totalTimeFormatted})</small>`;
+
+            li.appendChild(lapNumberSpan);
+            li.appendChild(lapTimeSpan);
+            
+            lapsList.appendChild(li); 
+        });
+        
+        lapsList.scrollTop = 0; 
+    }
+
+    // --- Event Listeners and Initialization ---
+
+    startStopBtn.addEventListener('click', handleStartStop);
+    lapResetBtn.addEventListener('click', handleLapReset);
+    
+    // Initialize display
+    display.textContent = formatTime(0);
+  </script>
+</body>
+</html>
